@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-const DEFAULT_SOCKET_URL = 'ws://localhost:8080'
+const DEFAULT_SOCKET_URL = 'ws://localhost:8000'
+const MIN_NODE_COUNT = 2
+const MAX_NODE_COUNT = 100
 
-function createTabId() {
-  return `tab-${Math.random().toString(36).slice(2, 10)}`
+function clampNodeCount(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) {
+    return 10
+  }
+
+  return Math.min(MAX_NODE_COUNT, Math.max(MIN_NODE_COUNT, Math.floor(numeric)))
 }
 
 function resolveSocketUrl() {
@@ -15,7 +22,7 @@ function resolveSocketUrl() {
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const hostname = window.location.hostname || 'localhost'
-    const port = import.meta.env.VITE_WEBSOCKET_PORT || '8080'
+    const port = import.meta.env.VITE_WEBSOCKET_PORT || '8000'
     return `${protocol}://${hostname}:${port}`
   }
 
@@ -30,9 +37,31 @@ function safeJsonParse(value) {
   }
 }
 
-export function useServerConnection({ onDistanceMatrix } = {}) {
+function matrixArrayToDistanceMatrix(matrix) {
+  if (!Array.isArray(matrix)) {
+    return null
+  }
+
+  const distanceMatrix = {}
+  for (let i = 0; i < matrix.length; i += 1) {
+    if (!Array.isArray(matrix[i])) {
+      continue
+    }
+
+    distanceMatrix[i] = {}
+    for (let j = 0; j < matrix[i].length; j += 1) {
+      if (i === j) {
+        continue
+      }
+      distanceMatrix[i][j] = matrix[i][j]
+    }
+  }
+
+  return distanceMatrix
+}
+
+export function useServerConnection({ onDistanceMatrix, onConnected, onGoBestRoute } = {}) {
   const socketUrl = resolveSocketUrl()
-  const tabIdRef = useRef(createTabId())
   const socketRef = useRef(null)
   const [status, setStatus] = useState('disconnected')
 
@@ -52,13 +81,7 @@ export function useServerConnection({ onDistanceMatrix } = {}) {
 
       socket.addEventListener('open', () => {
         setStatus('connected')
-        socket.send(
-          JSON.stringify({
-            type: 'CLIENT_REGISTER',
-            payload: { tabId: tabIdRef.current },
-          }),
-        )
-        socket.send(JSON.stringify({ type: 'REQUEST_GRAPH_STATE' }))
+        onConnected?.()
       })
 
       socket.addEventListener('close', () => {
@@ -83,18 +106,71 @@ export function useServerConnection({ onDistanceMatrix } = {}) {
             parsed.payload?.distanceMatrix,
             parsed.payload?.params,
             parsed.payload?.edgeWeights,
+            parsed.payload?.nodes,
+            parsed.payload?.matrix,
           )
           return
         }
 
         if (parsed.type === 'GRAPH_DISTANCE_MATRIX') {
-          onDistanceMatrix?.(parsed.payload?.distanceMatrix, null, null)
+          onDistanceMatrix?.(parsed.payload?.distanceMatrix, null, null, null, null)
+          return
+        }
+
+        if (parsed.type === 'start' && Array.isArray(parsed.matrix)) {
+          onDistanceMatrix?.(matrixArrayToDistanceMatrix(parsed.matrix), null, null, null, parsed.matrix)
+          return
+        }
+
+        if ((parsed.type === 'global_best' || parsed.type === 'local_best') && Array.isArray(parsed.path)) {
+          onGoBestRoute?.({
+            path: parsed.path,
+            distance: Number(parsed.distance),
+          })
         }
       })
     } catch {
       setStatus('disconnected')
     }
-  }, [onDistanceMatrix, socketUrl])
+  }, [onConnected, onDistanceMatrix, onGoBestRoute, socketUrl])
+
+  const generateWeights = useCallback((nodeCount) => {
+    const socket = socketRef.current
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false
+    }
+
+    const safeNodeCount = clampNodeCount(nodeCount)
+
+    socket.send(
+      JSON.stringify({
+        type: 'GENERATE_WEIGHTS',
+        payload: { nodeCount: safeNodeCount },
+      }),
+    )
+
+    return true
+  }, [])
+
+  const resetGraph = useCallback(() => {
+    const socket = socketRef.current
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false
+    }
+
+    socket.send(JSON.stringify({ type: 'RESET_GRAPH' }))
+    return true
+  }, [])
+
+  const relayWeights = useCallback(() => {
+    const socket = socketRef.current
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return false
+    }
+
+    socket.send(JSON.stringify({ type: 'RELAY_WEIGHTS' }))
+    return true
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -106,12 +182,14 @@ export function useServerConnection({ onDistanceMatrix } = {}) {
   return useMemo(
     () => ({
       socketUrl,
-      tabId: tabIdRef.current,
       isConnected: status === 'connected',
       isConnecting: status === 'connecting',
       status,
       connect,
+      generateWeights,
+      resetGraph,
+      relayWeights,
     }),
-    [connect, socketUrl, status],
+    [connect, generateWeights, relayWeights, resetGraph, socketUrl, status],
   )
 }

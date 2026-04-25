@@ -120,6 +120,10 @@
   padding: 10px;
 }
 
+.stats-wide-item {
+  grid-column: 1 / -1;
+}
+
 .stats-grid strong {
   display: block;
   font-size: 1.05rem;
@@ -147,6 +151,30 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.matrix-generator {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.node-count-label {
+  font-size: 0.84rem;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.matrix-generator-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.matrix-generator-row input[type='number'] {
+  width: 120px;
 }
 
 button {
@@ -321,6 +349,15 @@ input[type='range'] {
   font-size: 0.95rem;
 }
 
+.route-preview-go {
+  color: #2f6b43;
+}
+
+.route-text {
+  word-break: break-word;
+  line-height: 1.35;
+}
+
 .viz-panel svg {
   width: 100%;
   height: auto;
@@ -368,6 +405,14 @@ input[type='range'] {
   fill: var(--text-soft);
   font-size: 12px;
   text-anchor: middle;
+}
+
+.node-draggable {
+  cursor: grab;
+}
+
+.node-draggable:active {
+  cursor: grabbing;
 }
 
 @media (max-width: 960px) {

@@ -5,7 +5,15 @@ function formatDistance(value) {
   return value.toFixed(2)
 }
 
-export function StatsPanel({ stats, serverStatus }) {
+function formatRoute(route) {
+  if (!Array.isArray(route) || route.length === 0) {
+    return 'Waiting...'
+  }
+
+  return route.join(' -> ')
+}
+
+export function StatsPanel({ stats, serverStatus, goBestRoute = [], goBestDistance }) {
   const connectionLabel = serverStatus.isConnected ? 'Connected' : 'Disconnected'
 
   return (
@@ -25,14 +33,18 @@ export function StatsPanel({ stats, serverStatus }) {
           <strong>{stats.routesExplored}</strong>
         </div>
         <div>
-          <span className="metric-title">Active Tabs</span>
-          <strong>{stats.activeTabs}</strong>
-        </div>
-        <div>
           <span className="metric-title">Server</span>
           <strong className={serverStatus.isConnected ? 'status-online' : 'status-offline'}>
             {connectionLabel}
           </strong>
+        </div>
+        <div className="stats-wide-item">
+          <span className="metric-title">Global Best Distance</span>
+          <strong>{formatDistance(goBestDistance)}</strong>
+        </div>
+        <div className="stats-wide-item">
+          <span className="metric-title">Global Best Path</span>
+          <strong className="route-text">{formatRoute(goBestRoute)}</strong>
         </div>
       </div>
     </section>

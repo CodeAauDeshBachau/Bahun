@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+} from 'd3-force'
+import {
   ALPHA,
   ANT_COUNT,
   BETA,
@@ -8,9 +15,8 @@ import {
   Q,
   STIGMERGIC_BOOST,
 } from '../lib/constants.jsx'
-import { INITIAL_EDGES, MAP_SIZE, VILLAGES } from '../data/villages.jsx'
+import { MAP_SIZE } from '../data/villages.jsx'
 import { edgeKey } from '../lib/graph.jsx'
-import { useBroadcast } from './useBroadcast.jsx'
 
 function createDefaultParams() {
   return {
@@ -21,8 +27,8 @@ function createDefaultParams() {
     q: Q,
     stigmergicBoost: STIGMERGIC_BOOST,
     initialPheromone: INITIAL_PHEROMONE,
-    startNodeId: VILLAGES[0]?.id ?? null,
-    destinationNodeId: VILLAGES[VILLAGES.length - 1]?.id ?? null,
+    startNodeId: null,
+    destinationNodeId: null,
   }
 }
 
@@ -36,11 +42,130 @@ function parseMatrixValue(rawValue) {
   }
 
   const distance = Number(rawValue)
-  if (!Number.isFinite(distance) || distance <= 0) {
+  if (!Number.isFinite(distance)) {
+    return { blocked: false, distance: null }
+  }
+
+  if (distance === 0) {
+    return { blocked: true, distance: null }
+  }
+
+  if (distance < 0) {
     return { blocked: false, distance: null }
   }
 
   return { blocked: false, distance }
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value))
+}
+
+function createSeededRandom(seed) {
+  let state = (Math.abs(Math.floor(seed * 1009)) % 2147483647) + 1
+  return () => {
+    state = (state * 48271) % 2147483647
+    return state / 2147483647
+  }
+}
+
+function createLayoutLinks(distanceMatrix = {}, ids = []) {
+  const idSet = new Set(ids.map((id) => String(id)))
+  const seen = new Set()
+  const links = []
+
+  for (const [from, neighbors] of Object.entries(distanceMatrix)) {
+    if (!idSet.has(String(from)) || !neighbors || typeof neighbors !== 'object') {
+      continue
+    }
+
+    for (const [to, rawDistance] of Object.entries(neighbors)) {
+      if (!idSet.has(String(to))) {
+        continue
+      }
+
+      const key = edgeKey(from, to)
+      if (seen.has(key)) {
+        continue
+      }
+
+      const parsed = parseMatrixValue(rawDistance)
+      if (parsed.blocked) {
+        continue
+      }
+
+      seen.add(key)
+      links.push({
+        source: Number(from),
+        target: Number(to),
+      })
+    }
+  }
+
+  return links
+}
+
+function createForceLayout(nodes, links, width, height) {
+  if (!nodes.length) {
+    return []
+  }
+
+  const padding = 44
+  const simulationNodes = nodes.map((node) => ({ ...node }))
+  const linkForce = forceLink(links).id((node) => node.id).distance(110).strength(0.12)
+  const seededRandom = createSeededRandom(nodes.length * 17 + links.length * 31 + width + height)
+  const simulation = forceSimulation(simulationNodes)
+    .randomSource(seededRandom)
+    .force('charge', forceManyBody().strength(-220))
+    .force('link', linkForce)
+    .force('center', forceCenter(width / 2, height / 2))
+    .force('collision', forceCollide().radius(26).strength(0.95))
+    .stop()
+
+  const ticks = Math.max(140, Math.min(260, nodes.length * 4))
+  for (let index = 0; index < ticks; index += 1) {
+    simulation.tick()
+  }
+
+  return simulationNodes.map((node) => ({
+    id: node.id,
+    name: node.name,
+    kind: node.kind,
+    x: Math.round(clamp(Number(node.x), padding, width - padding)),
+    y: Math.round(clamp(Number(node.y), padding, height - padding)),
+  }))
+}
+
+function buildNodesFromGraphData(distanceMatrix, serverNodes) {
+  const width = MAP_SIZE.width
+  const height = MAP_SIZE.height
+
+  if (Array.isArray(serverNodes) && serverNodes.length) {
+    const normalized = serverNodes.map((node, index) => ({
+      id: Number(node.id ?? index),
+      name: node.name ?? `Node ${node.id ?? index}`,
+      x: Number.isFinite(Number(node.x)) ? Number(node.x) : width / 2,
+      y: Number.isFinite(Number(node.y)) ? Number(node.y) : height / 2,
+      kind: node.kind ?? (Number(node.id ?? index) === 0 ? 'hospital' : 'village'),
+    }))
+
+    const links = createLayoutLinks(distanceMatrix, normalized.map((node) => node.id))
+    return createForceLayout(normalized, links, width, height)
+  }
+
+  const ids = Object.keys(distanceMatrix ?? {}).map((id) => Number(id)).filter(Number.isFinite)
+  if (!ids.length) {
+    return []
+  }
+
+  const sortedIds = ids.sort((a, b) => a - b)
+  const baseNodes = sortedIds.map((id) => ({
+    id,
+    name: `Node ${id}`,
+    kind: id === 0 ? 'hospital' : 'village',
+  }))
+  const links = createLayoutLinks(distanceMatrix, sortedIds)
+  return createForceLayout(baseNodes, links, width, height)
 }
 
 function buildEdgesFromDistanceMatrix(distanceMatrix, initialPheromone, nodes, edgeWeights = {}) {
@@ -84,13 +209,13 @@ function buildEdgesFromDistanceMatrix(distanceMatrix, initialPheromone, nodes, e
         (value) => Number.isFinite(value) && value > 0,
       )
 
-      if (!Number.isFinite(distance) || distance <= 0) {
+      if (!blocked && (!Number.isFinite(distance) || distance <= 0)) {
         continue
       }
 
       const weight = Number.isFinite(Number(edgeWeights[id]))
         ? Number(edgeWeights[id])
-        : distance
+        : (blocked ? 0 : distance)
 
       edges.push({
         id,
@@ -98,7 +223,7 @@ function buildEdgesFromDistanceMatrix(distanceMatrix, initialPheromone, nodes, e
         to,
         blocked,
         pheromone: initialPheromone,
-        distance,
+        distance: blocked ? 1 : distance,
         weight,
       })
     }
@@ -109,69 +234,20 @@ function buildEdgesFromDistanceMatrix(distanceMatrix, initialPheromone, nodes, e
 
 export function useSwarm() {
   const workerRef = useRef(null)
-  const [nodes] = useState(VILLAGES)
-  const [edges, setEdges] = useState(() => cloneEdges(INITIAL_EDGES))
-  const [baseEdges, setBaseEdges] = useState(() => cloneEdges(INITIAL_EDGES))
+  const [nodes, setNodes] = useState([])
+  const [edges, setEdges] = useState([])
+  const [baseEdges, setBaseEdges] = useState([])
   const [bestRoute, setBestRoute] = useState([])
+  const [goBestRoute, setGoBestRoute] = useState([])
+  const [goBestDistance, setGoBestDistance] = useState(Number.POSITIVE_INFINITY)
   const [antRoutes, setAntRoutes] = useState([])
   const [stats, setStats] = useState({
     iteration: 0,
     routesExplored: 0,
     bestDistance: Number.POSITIVE_INFINITY,
-    activeTabs: 1,
   })
   const [params, setParams] = useState(createDefaultParams)
   const [isRunning, setIsRunning] = useState(false)
-
-  const syncRemoteBestRoute = useCallback((payload) => {
-    if (!payload?.bestRoute?.length) {
-      return
-    }
-
-    setBestRoute((current) => {
-      if (!current.length) {
-        return payload.bestRoute
-      }
-      if (Number.isFinite(payload.bestDistance)) {
-        return payload.bestRoute
-      }
-      return current
-    })
-
-    setStats((current) => {
-      const incoming = Number.isFinite(payload.bestDistance)
-        ? payload.bestDistance
-        : current.bestDistance
-      return {
-        ...current,
-        bestDistance: Math.min(current.bestDistance, incoming),
-      }
-    })
-
-    workerRef.current?.postMessage({ type: 'INJECT_PHEROMONES', payload })
-  }, [])
-
-  const syncRemoteBlockedEdge = useCallback((payload) => {
-    if (!payload?.edgeId) {
-      return
-    }
-
-    setEdges((current) =>
-      current.map((edge) =>
-        edge.id === payload.edgeId ? { ...edge, blocked: Boolean(payload.blocked) } : edge,
-      ),
-    )
-    workerRef.current?.postMessage({ type: 'BLOCK_EDGE', payload })
-  }, [])
-
-  const { activeTabs, publishBestRoute } = useBroadcast({
-    onBestRoute: syncRemoteBestRoute,
-    onBlockedEdge: syncRemoteBlockedEdge,
-  })
-
-  useEffect(() => {
-    setStats((current) => ({ ...current, activeTabs }))
-  }, [activeTabs])
 
   useEffect(() => {
     const worker = new Worker(new URL('../workers/worker.js', import.meta.url), { type: 'module' })
@@ -202,7 +278,6 @@ export function useSwarm() {
 
       if (Array.isArray(payload.bestRoute) && payload.bestRoute.length) {
         setBestRoute(payload.bestRoute)
-        publishBestRoute({ bestDistance: payload.bestDistance, bestRoute: payload.bestRoute })
       }
     }
 
@@ -212,13 +287,17 @@ export function useSwarm() {
       worker.terminate()
       workerRef.current = null
     }
-  }, [publishBestRoute])
+  }, [])
 
   useEffect(() => {
     workerRef.current?.postMessage({ type: 'CONFIG', payload: { params } })
   }, [params])
 
   const start = useCallback(() => {
+    if (!nodes.length || !edges.length) {
+      return
+    }
+
     workerRef.current?.postMessage({
       type: 'START',
       payload: { nodes, edges, params },
@@ -234,11 +313,13 @@ export function useSwarm() {
   const reset = useCallback(() => {
     const resetEdges = cloneEdges(baseEdges).map((edge) => ({
       ...edge,
-      blocked: false,
+      blocked: Boolean(edge.blocked),
       pheromone: params.initialPheromone,
     }))
     setEdges(resetEdges)
     setBestRoute([])
+    setGoBestRoute([])
+    setGoBestDistance(Number.POSITIVE_INFINITY)
     setAntRoutes([])
     setStats((current) => ({
       ...current,
@@ -257,7 +338,41 @@ export function useSwarm() {
     setParams((current) => ({ ...current, [key]: value }))
   }, [])
 
-  const loadDistanceMatrix = useCallback((distanceMatrix, serverParams = null, edgeWeights = {}) => {
+  const clearGraph = useCallback(() => {
+    workerRef.current?.postMessage({ type: 'STOP' })
+    setNodes([])
+    setBaseEdges([])
+    setEdges([])
+    setBestRoute([])
+    setGoBestRoute([])
+    setGoBestDistance(Number.POSITIVE_INFINITY)
+    setAntRoutes([])
+    setStats((current) => ({
+      ...current,
+      iteration: 0,
+      routesExplored: 0,
+      bestDistance: Number.POSITIVE_INFINITY,
+    }))
+    setIsRunning(false)
+  }, [])
+
+  const loadDistanceMatrix = useCallback((
+    distanceMatrix,
+    serverParams = null,
+    edgeWeights = {},
+    serverNodes = null,
+  ) => {
+    if (!distanceMatrix || typeof distanceMatrix !== 'object') {
+      clearGraph()
+      return
+    }
+
+    const nextNodes = buildNodesFromGraphData(distanceMatrix, serverNodes)
+    if (!nextNodes.length) {
+      clearGraph()
+      return
+    }
+
     const mergedParams = {
       ...params,
       ...(serverParams && typeof serverParams === 'object' ? serverParams : {}),
@@ -266,18 +381,21 @@ export function useSwarm() {
     const nextEdges = buildEdgesFromDistanceMatrix(
       distanceMatrix,
       mergedParams.initialPheromone,
-      nodes,
+      nextNodes,
       edgeWeights,
     )
     if (!nextEdges.length) {
       return
     }
 
+    setNodes(nextNodes)
     setParams(mergedParams)
 
     setBaseEdges(nextEdges)
     setEdges(nextEdges)
     setBestRoute([])
+    setGoBestRoute([])
+    setGoBestDistance(Number.POSITIVE_INFINITY)
     setAntRoutes([])
     setStats((current) => ({
       ...current,
@@ -294,12 +412,23 @@ export function useSwarm() {
       },
     })
     setIsRunning(false)
-  }, [nodes, params])
+  }, [clearGraph, params])
+
+  const applyGoBestRoute = useCallback((payload) => {
+    if (!payload?.path?.length) {
+      return
+    }
+
+    setGoBestRoute(payload.path)
+    setGoBestDistance(Number.isFinite(payload.distance) ? payload.distance : Number.POSITIVE_INFINITY)
+  }, [])
 
   return useMemo(() => ({
     nodes,
     edges,
     bestRoute,
+    goBestRoute,
+    goBestDistance,
     antRoutes,
     stats,
     params,
@@ -309,17 +438,23 @@ export function useSwarm() {
     stop,
     reset,
     setParameter,
+    clearGraph,
     loadDistanceMatrix,
+    applyGoBestRoute,
   }), [
     antRoutes,
     bestRoute,
     edges,
+    applyGoBestRoute,
     isRunning,
     loadDistanceMatrix,
     nodes,
+    goBestDistance,
+    goBestRoute,
     params,
     reset,
     setParameter,
+    clearGraph,
     start,
     stats,
     stop,
