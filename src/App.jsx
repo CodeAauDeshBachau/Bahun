@@ -17,6 +17,7 @@ function App() {
     stop,
     reset,
     setParameter,
+    toggleEdge,
   } = useSwarm()
 
   return (
@@ -48,6 +49,7 @@ function App() {
         edges={edges}
         bestRoute={bestRoute}
         mapSize={mapSize}
+        onToggleEdge={toggleEdge}
       />
     </main>
   )

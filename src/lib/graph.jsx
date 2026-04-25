@@ -63,3 +63,15 @@ export function getNodeCount() {
 export function getTauMatrix() {
     return tauMatrix;
 }
+
+// Create a unique key for an edge (undirected)
+export function edgeKey(from, to) {
+    return `${Math.min(from, to)}-${Math.max(from, to)}`;
+}
+
+// Calculate euclidean distance between two nodes
+export function euclidean(node1, node2) {
+    const dx = node2.x - node1.x;
+    const dy = node2.y - node1.y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
