@@ -10,3 +10,6 @@ export const STIGMERGIC_BOOST = 5; // multiplier when injecting peer's route
 export const INITIAL_PHEROMONE = 1.0;
 export const CANVAS_WIDTH = 1120;
 export const CANVAS_HEIGHT = 620;
+
+export const ANT_ROUTE_COLORS = ['#3b82f6', '#f97316', '#16a34a'];
+export const BEST_ROUTE_COLOR = '#f4c85f';

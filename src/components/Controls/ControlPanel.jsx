@@ -18,28 +18,28 @@ export function ControlPanel({ nodes, isRunning, onStart, onStop, onReset, param
       <div className="slider-group">
         <div className="selector-grid">
           <label>
-            Start City
+            Start Node
             <select
               value={params.startNodeId}
               onChange={(event) => onParamChange('startNodeId', event.target.value)}
             >
               {nodes.map((node) => (
                 <option key={node.id} value={node.id}>
-                  {node.id} - {node.name}
+                  {node.id}
                 </option>
               ))}
             </select>
           </label>
 
           <label>
-            Destination City
+            Destination Node
             <select
               value={params.destinationNodeId}
               onChange={(event) => onParamChange('destinationNodeId', event.target.value)}
             >
               {nodes.map((node) => (
                 <option key={node.id} value={node.id}>
-                  {node.id} - {node.name}
+                  {node.id}
                 </option>
               ))}
             </select>
@@ -69,6 +69,56 @@ export function ControlPanel({ nodes, isRunning, onStart, onStop, onReset, param
             onChange={(event) => onParamChange('beta', Number(event.target.value))}
           />
         </label>
+
+        <label>
+          Evaporation Rate: {params.evaporationRate.toFixed(2)}
+          <input
+            type="range"
+            min="0.01"
+            max="0.9"
+            step="0.01"
+            value={params.evaporationRate}
+            onChange={(event) => onParamChange('evaporationRate', Number(event.target.value))}
+          />
+        </label>
+
+        {/* <label>
+          Q (pheromone deposit): {params.q.toFixed(0)}
+          <input
+            type="range"
+            min="10"
+            max="300"
+            step="5"
+            value={params.q}
+            onChange={(event) => onParamChange('q', Number(event.target.value))}
+          />
+        </label>
+
+        <label>
+          Stigmergic Boost: {params.stigmergicBoost.toFixed(1)}
+          <input
+            type="range"
+            min="1"
+            max="10"
+            step="0.5"
+            value={params.stigmergicBoost}
+            onChange={(event) => onParamChange('stigmergicBoost', Number(event.target.value))}
+          />
+        </label>
+
+        <label>
+          Initial Pheromone: {params.initialPheromone.toFixed(2)}
+          <input
+            type="range"
+            min="0.2"
+            max="4"
+            step="0.1"
+            value={params.initialPheromone}
+            onChange={(event) => onParamChange('initialPheromone', Number(event.target.value))}
+          />
+        </label> */}
+
+        <p className="muted">Ants per pass (fixed): {params.antCount}</p>
       </div>
     </section>
   )

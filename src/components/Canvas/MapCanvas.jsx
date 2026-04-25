@@ -22,7 +22,16 @@ function pointToSegmentDistance(point, start, end) {
   return Math.hypot(point.x - projection.x, point.y - projection.y)
 }
 
-export function MapCanvas({ nodes, edges, bestRoute, mapSize, onToggleEdge }) {
+export function MapCanvas({
+  nodes,
+  edges,
+  bestRoute,
+  antRoutes = [],
+  startNodeId,
+  destinationNodeId,
+  mapSize,
+  onToggleEdge,
+}) {
   const canvasRef = useRef(null)
   const [hoveredEdgeId, setHoveredEdgeId] = useState(null)
   const { drawMap } = useCanvas()
@@ -30,8 +39,16 @@ export function MapCanvas({ nodes, edges, bestRoute, mapSize, onToggleEdge }) {
   const nodeMap = useMemo(() => Object.fromEntries(nodes.map((node) => [node.id, node])), [nodes])
 
   useEffect(() => {
-    drawMap(canvasRef.current, { nodes, edges, bestRoute, hoveredEdgeId })
-  }, [bestRoute, drawMap, edges, hoveredEdgeId, nodes])
+    drawMap(canvasRef.current, {
+      nodes,
+      edges,
+      bestRoute,
+      antRoutes,
+      hoveredEdgeId,
+      startNodeId,
+      destinationNodeId,
+    })
+  }, [antRoutes, bestRoute, destinationNodeId, drawMap, edges, hoveredEdgeId, nodes, startNodeId])
 
   function detectEdge(clientX, clientY) {
     const canvas = canvasRef.current
@@ -77,6 +94,9 @@ export function MapCanvas({ nodes, edges, bestRoute, mapSize, onToggleEdge }) {
         }}
       />
       <p className="muted">Click any road segment to block/unblock it.</p>
+      {antRoutes.length > 0 && (
+        <p className="muted">Ant routes this pass: {antRoutes.map((ant) => ant.antId).join(', ')}</p>
+      )}
       {bestRoute.length > 1 && (
         <p className="route-preview">Current best route: {bestRoute.join(' -> ')}</p>
       )}

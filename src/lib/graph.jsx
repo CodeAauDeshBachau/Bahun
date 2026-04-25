@@ -66,7 +66,8 @@ export function getTauMatrix() {
 
 // Create a unique key for an edge (undirected)
 export function edgeKey(from, to) {
-    return `${Math.min(from, to)}-${Math.max(from, to)}`;
+    const [a, b] = [String(from), String(to)].sort();
+    return `${a}-${b}`;
 }
 
 // Calculate euclidean distance between two nodes

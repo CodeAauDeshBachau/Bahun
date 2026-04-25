@@ -9,6 +9,7 @@ function App() {
     nodes,
     edges,
     bestRoute,
+    antRoutes,
     stats,
     params,
     mapSize,
@@ -48,6 +49,9 @@ function App() {
         nodes={nodes}
         edges={edges}
         bestRoute={bestRoute}
+        antRoutes={antRoutes}
+        startNodeId={params.startNodeId}
+        destinationNodeId={params.destinationNodeId}
         mapSize={mapSize}
         onToggleEdge={toggleEdge}
       />
