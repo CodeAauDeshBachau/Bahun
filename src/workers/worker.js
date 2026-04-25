@@ -23,9 +23,27 @@ const state = {
   },
 };
 
-function routeDistance(route, nodeMap) {
+function buildEdgeDistanceMap(edges) {
+  const byId = new Map();
+
+  for (const edge of edges) {
+    byId.set(edge.id, Number(edge.distance));
+  }
+
+  return byId;
+}
+
+function routeDistance(route, nodeMap, edgeDistanceMap) {
   let total = 0;
   for (let i = 0; i < route.length - 1; i += 1) {
+    const id = edgeKey(route[i], route[i + 1]);
+    const edgeDistance = edgeDistanceMap.get(id);
+
+    if (Number.isFinite(edgeDistance) && edgeDistance > 0) {
+      total += edgeDistance;
+      continue;
+    }
+
     total += euclidean(nodeMap[route[i]], nodeMap[route[i + 1]]);
   }
   return total;
@@ -108,6 +126,7 @@ function loop() {
   const nodeMap = Object.fromEntries(
     state.nodes.map((node) => [node.id, node]),
   );
+  const edgeDistanceMap = buildEdgeDistanceMap(state.edges);
   const antsThisPass = Number.isFinite(state.params.antCount)
     ? Math.max(1, Math.floor(state.params.antCount))
     : 3;
@@ -115,7 +134,7 @@ function loop() {
   const antRoutes = [];
   for (let antIndex = 0; antIndex < antsThisPass; antIndex += 1) {
     const route = constructRoute(state.nodes, state.edges, state.params);
-    const distance = routeDistance(route, nodeMap);
+    const distance = routeDistance(route, nodeMap, edgeDistanceMap);
 
     routesExplored += 1;
     antRoutes.push({ antId: antIndex + 1, route, distance });

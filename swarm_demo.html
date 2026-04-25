@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swarm Intelligence · Disaster Relief Router</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap');
+
+  :root {
+    --bg: #050a0f;
+    --panel: #0a1520;
+    --border: #0d3a5c;
+    --accent: #00c8ff;
+    --pheromone: #0066aa;
+    --best: #ffcc00;
+    --danger: #ff3333;
+    --node-color: #00ffcc;
+    --hospital: #ff4466;
+    --text: #a8d8ea;
+    --dim: #3a6a8a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  .title-block h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .title-block p {
+    font-size: 11px;
+    color: var(--dim);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px;
+  }
+
+  .tab-id {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    padding: 4px 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .sidebar {
+    width: 220px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex-shrink: 0;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    padding: 3px 0;
+    border-bottom: 1px solid #0d2535;
+  }
+
+  .stat-val {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  .stat-val.best { color: var(--best); }
+  .stat-val.danger { color: var(--danger); }
+
+  button {
+    width: 100%;
+    padding: 9px;
+    border: none;
+    border-radius: 3px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  #btn-start {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  #btn-start:hover { background: #33d6ff; }
+  #btn-start:disabled { background: var(--dim); cursor: not-allowed; }
+
+  #btn-stop {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+  }
+  #btn-stop:hover { background: #1a0a0a; }
+  #btn-stop:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  #btn-reset {
+    background: transparent;
+    color: var(--dim);
+    border: 1px solid var(--border);
+    font-size: 12px;
+  }
+  #btn-reset:hover { border-color: var(--text); color: var(--text); }
+
+  .legend { display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .log-box {
+    flex: 1;
+    background: #030810;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px;
+    overflow-y: auto;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    line-height: 1.6;
+    min-height: 80px;
+  }
+
+  .log-box .log-entry { margin-bottom: 2px; }
+  .log-box .log-entry.info { color: var(--accent); }
+  .log-box .log-entry.good { color: #00ff99; }
+  .log-box .log-entry.warn { color: var(--best); }
+  .log-box .log-entry.peer { color: #cc88ff; }
+
+  .canvas-wrap {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+  }
+
+  .overlay-hint {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--dim);
+    font-family: 'Share Tech Mono', monospace;
+    letter-spacing: 1px;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  .chaos-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,50,50,0.15);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .chaos-flash.active { opacity: 1; }
+
+  .peer-flash {
+    position: absolute;
+    inset: 0;
+    background: rgba(160,80,255,0.08);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  .peer-flash.active { opacity: 1; }
+
+  .params { display: flex; flex-direction: column; gap: 6px; }
+  .param-row { display: flex; flex-direction: column; gap: 2px; }
+  .param-row label { font-size: 10px; color: var(--dim); font-family: 'Share Tech Mono', monospace; display: flex; justify-content: space-between; }
+  .param-row input[type=range] { width: 100%; accent-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1>⬡ Swarm Brain</h1>
+    <p>Disaster Relief · Dynamic TSP · ACO + 2-opt</p>
+  </div>
+  <div class="tab-id" id="tab-id-label">TAB —</div>
+</header>
+
+<div class="main">
+  <div class="sidebar">
+
+    <div>
+      <div class="section-label">Controls</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button id="btn-start">▶ Start Swarm</button>
+        <button id="btn-stop" disabled>■ Stop</button>
+        <button id="btn-reset">↺ Reset Map</button>
+      </div>
+    </div>
+
+    <div class="params">
+      <div class="section-label">ACO Parameters</div>
+      <div class="param-row">
+        <label>α (pheromone) <span id="alpha-val">1.0</span></label>
+        <input type="range" id="alpha" min="0.5" max="3" step="0.1" value="1.0">
+      </div>
+      <div class="param-row">
+        <label>β (heuristic) <span id="beta-val">3.0</span></label>
+        <input type="range" id="beta" min="1" max="6" step="0.5" value="3.0">
+      </div>
+      <div class="param-row">
+        <label>ρ (evaporation) <span id="rho-val">0.05</span></label>
+        <input type="range" id="rho" min="0.01" max="0.3" step="0.01" value="0.05">
+      </div>
+      <div class="param-row">
+        <label>Ants / iter <span id="ants-val">30</span></label>
+        <input type="range" id="ants" min="5" max="80" step="5" value="30">
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Live Stats</div>
+      <div class="stat-row"><span>Iteration</span><span class="stat-val" id="s-iter">0</span></div>
+      <div class="stat-row"><span>Best Distance</span><span class="stat-val best" id="s-best">—</span></div>
+      <div class="stat-row"><span>Nodes</span><span class="stat-val" id="s-nodes">21</span></div>
+      <div class="stat-row"><span>Blocked Edges</span><span class="stat-val danger" id="s-blocked">0</span></div>
+      <div class="stat-row"><span>Peer Updates</span><span class="stat-val" style="color:#cc88ff" id="s-peer">0</span></div>
+    </div>
+
+    <div>
+      <div class="section-label">Legend</div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#ff4466"></div>Central Hospital</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#00ffcc"></div>Village</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#0066aa;border-radius:0"></div>Pheromone Trail</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ffcc00;border-radius:0"></div>Best Route</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#ff3333;border-radius:0"></div>Blocked Edge</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label">Network Log</div>
+      <div class="log-box" id="log-box"></div>
+    </div>
+
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div class="chaos-flash" id="chaos-flash"></div>
+    <div class="peer-flash" id="peer-flash"></div>
+    <div class="overlay-hint" id="overlay-hint">CLICK ROUTE EDGE TO BLOCK · OPEN MULTIPLE TABS FOR P2P SYNC</div>
+  </div>
+</div>
+
+<script>
+// ─── TAB IDENTITY ────────────────────────────────────────────────────────────
+const TAB_ID = 'TAB-' + Math.random().toString(36).slice(2,5).toUpperCase();
+document.getElementById('tab-id-label').textContent = TAB_ID;
+
+// ─── CANVAS SETUP ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const wrap = canvas.parentElement;
+
+function resizeCanvas() {
+  canvas.width = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+  draw();
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ─── MAP DATA ────────────────────────────────────────────────────────────────
+const NODE_COUNT = 21; // 1 hospital + 20 villages
+let nodes = [];
+let blockedEdges = new Set(); // "i-j" strings where i<j
+
+function initNodes() {
+  nodes = [];
+  blockedEdges.clear();
+  document.getElementById('s-blocked').textContent = '0';
+
+  const W = canvas.width, H = canvas.height;
+  const pad = 60;
+
+  // Hospital always in center-ish
+  nodes.push({ x: W / 2, y: H / 2, type: 'hospital', label: 'H' });
+
+  // Villages scattered around
+  for (let i = 1; i < NODE_COUNT; i++) {
+    nodes.push({
+      x: pad + Math.random() * (W - pad * 2),
+      y: pad + Math.random() * (H - pad * 2),
+      type: 'village',
+      label: `V${i}`
+    });
+  }
+}
+
+// ─── ACO STATE ───────────────────────────────────────────────────────────────
+let pheromone = [];       // [i][j] matrix
+let bestRoute = null;
+let bestDist = Infinity;
+let iterCount = 0;
+let running = false;
+let animFrame = null;
+let peerUpdateCount = 0;
+
+// Params (read from sliders)
+let ALPHA = 1.0, BETA = 3.0, RHO = 0.05, NUM_ANTS = 30;
+const Q = 100; // pheromone deposit constant
+
+function dist(a, b) {
+  const dx = a.x - b.x, dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function edgeKey(i, j) {
+  return i < j ? `${i}-${j}` : `${j}-${i}`;
+}
+
+function isBlocked(i, j) {
+  return blockedEdges.has(edgeKey(i, j));
+}
+
+function edgeDist(i, j) {
+  if (isBlocked(i, j)) return Infinity;
+  return dist(nodes[i], nodes[j]);
+}
+
+function initPheromone() {
+  const n = nodes.length;
+  pheromone = Array.from({ length: n }, () => new Array(n).fill(1.0));
+}
+
+function routeLength(route) {
+  let d = 0;
+  for (let i = 0; i < route.length; i++) {
+    d += edgeDist(route[i], route[(i + 1) % route.length]);
+  }
+  return d;
+}
+
+// ─── ANT CONSTRUCTION ────────────────────────────────────────────────────────
+function buildAntRoute() {
+  const n = nodes.length;
+  const visited = new Array(n).fill(false);
+  const start = 0; // always start at hospital
+  const route = [start];
+  visited[start] = true;
+
+  for (let step = 1; step < n; step++) {
+    const curr = route[route.length - 1];
+    const probs = [];
+    let total = 0;
+
+    for (let j = 0; j < n; j++) {
+      if (visited[j]) continue;
+      const d = edgeDist(curr, j);
+      if (d === Infinity) { probs.push(0); continue; }
+      const tau = Math.pow(pheromone[curr][j], ALPHA);
+      const eta = Math.pow(1.0 / d, BETA);
+      const val = tau * eta;
+      probs.push(val);
+      total += val;
+    }
+
+    // Roulette wheel select
+    let r = Math.random() * total;
+    let chosen = -1;
+    let cumulative = 0;
+    let idx = 0;
+    for (let j = 0; j < n; j++) {
+      if (visited[j]) continue;
+      cumulative += probs[idx];
+      idx++;
+      if (cumulative >= r) { chosen = j; break; }
+      chosen = j; // fallback
+    }
+
+    // Re-derive chosen from raw traversal
+    // (fix: iterate properly)
+    chosen = -1;
+    cumulative = 0;
+    r = Math.random() * total;
+    for (let j = 0; j < n; j++) {
+      if (visited[j]) continue;
+      const d = edgeDist(curr, j);
+      if (d === Infinity) continue;
+      const tau = Math.pow(pheromone[curr][j], ALPHA);
+      const eta = Math.pow(1.0 / d, BETA);
+      cumulative += tau * eta;
+      if (cumulative >= r) { chosen = j; break; }
+      if (chosen === -1) chosen = j;
+    }
+
+    if (chosen === -1) {
+      // All reachable nodes exhausted — pick any unvisited
+      for (let j = 0; j < n; j++) {
+        if (!visited[j]) { chosen = j; break; }
+      }
+    }
+
+    route.push(chosen);
+    visited[chosen] = true;
+  }
+
+  return route;
+}
+
+// ─── 2-OPT REFINEMENT ────────────────────────────────────────────────────────
+function twoOpt(route) {
+  let improved = true;
+  let r = [...route];
+  while (improved) {
+    improved = false;
+    for (let i = 1; i < r.length - 1; i++) {
+      for (let j = i + 1; j < r.length; j++) {
+        const a = r[i - 1], b = r[i], c = r[j], d = r[(j + 1) % r.length];
+        const before = edgeDist(a, b) + edgeDist(c, d);
+        const after  = edgeDist(a, c) + edgeDist(b, d);
+        if (after < before - 0.001) {
+          // Reverse segment [i..j]
+          let lo = i, hi = j;
+          while (lo < hi) { [r[lo], r[hi]] = [r[hi], r[lo]]; lo++; hi--; }
+          improved = true;
+        }
+      }
+    }
+  }
+  return r;
+}
+
+// ─── PHEROMONE UPDATE ────────────────────────────────────────────────────────
+function evaporate() {
+  const n = nodes.length;
+  for (let i = 0; i < n; i++)
+    for (let j = 0; j < n; j++)
+      pheromone[i][j] = Math.max(0.01, pheromone[i][j] * (1 - RHO));
+}
+
+function depositPheromone(route, d) {
+  const delta = Q / d;
+  for (let k = 0; k < route.length; k++) {
+    const i = route[k], j = route[(k + 1) % route.length];
+    pheromone[i][j] += delta;
+    pheromone[j][i] += delta;
+  }
+}
+
+// Stigmergic injection: massive pheromone boost on peer's edges
+function stigmergicInject(route, multiplier = 5) {
+  const d = routeLength(route);
+  if (d === Infinity) return;
+  const delta = (Q * multiplier) / d;
+  for (let k = 0; k < route.length; k++) {
+    const i = route[k], j = route[(k + 1) % route.length];
+    pheromone[i][j] += delta;
+    pheromone[j][i] += delta;
+  }
+}
+
+// ─── ONE ACO ITERATION ───────────────────────────────────────────────────────
+let iterBestRoute = null;
+let iterBestDist = Infinity;
+
+function acoIteration() {
+  iterBestRoute = null;
+  iterBestDist = Infinity;
+
+  evaporate();
+
+  for (let a = 0; a < NUM_ANTS; a++) {
+    let route = buildAntRoute();
+    route = twoOpt(route);
+    const d = routeLength(route);
+    depositPheromone(route, d);
+
+    if (d < iterBestDist) {
+      iterBestDist = d;
+      iterBestRoute = route;
+    }
+  }
+
+  if (iterBestDist < bestDist) {
+    bestDist = iterBestDist;
+    bestRoute = [...iterBestRoute];
+    document.getElementById('s-best').textContent = Math.round(bestDist);
+
+    // Broadcast to peers
+    channel.postMessage({
+      type: 'NEW_BEST',
+      from: TAB_ID,
+      route: bestRoute,
+      dist: bestDist
+    });
+    log(`Broadcast new best: ${Math.round(bestDist)}`, 'info');
+  }
+
+  iterCount++;
+  document.getElementById('s-iter').textContent = iterCount;
+}
+
+// ─── BROADCAST CHANNEL (P2P) ─────────────────────────────────────────────────
+const channel = new BroadcastChannel('swarm_aco');
+
+channel.onmessage = (e) => {
+  const { type, from, route, dist } = e.data;
+  if (from === TAB_ID) return; // ignore own messages
+
+  if (type === 'NEW_BEST') {
+    peerUpdateCount++;
+    document.getElementById('s-peer').textContent = peerUpdateCount;
+    log(`← ${from}: dist=${Math.round(dist)}`, 'peer');
+
+    // Stigmergic injection
+    stigmergicInject(route);
+
+    // Accept if better
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestRoute = [...route];
+      document.getElementById('s-best').textContent = Math.round(bestDist);
+      log(`Adopted peer route!`, 'good');
+    }
+
+    // Visual flash
+    const pf = document.getElementById('peer-flash');
+    pf.classList.add('active');
+    setTimeout(() => pf.classList.remove('active'), 400);
+  }
+};
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function getPheromoneAlpha(i, j) {
+  const raw = pheromone[i]?.[j] ?? 0;
+  return Math.min(1, raw / 15);
+}
+
+function getPheromoneWidth(i, j) {
+  const raw = pheromone[i]?.[j] ?? 0;
+  return Math.min(6, 0.5 + raw / 8);
+}
+
+let frameCount = 0;
+
+function draw() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid (subtle)
+  ctx.strokeStyle = 'rgba(0,80,120,0.07)';
+  ctx.lineWidth = 0.5;
+  const gridSize = 40;
+  for (let x = 0; x < W; x += gridSize) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += gridSize) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  if (nodes.length === 0) return;
+
+  const n = nodes.length;
+
+  // Draw pheromone trails
+  if (pheromone.length === n) {
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const alpha = getPheromoneAlpha(i, j);
+        if (alpha < 0.03) continue;
+        const w = getPheromoneWidth(i, j);
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x, nodes[i].y);
+        ctx.lineTo(nodes[j].x, nodes[j].y);
+        ctx.strokeStyle = `rgba(0,120,200,${alpha})`;
+        ctx.lineWidth = w;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw blocked edges (red X lines)
+  blockedEdges.forEach(key => {
+    const [a, b] = key.split('-').map(Number);
+    if (a >= n || b >= n) return;
+    ctx.beginPath();
+    ctx.moveTo(nodes[a].x, nodes[a].y);
+    ctx.lineTo(nodes[b].x, nodes[b].y);
+    ctx.strokeStyle = 'rgba(255,50,50,0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Draw best route
+  if (bestRoute && bestRoute.length === n) {
+    const pulse = 0.7 + 0.3 * Math.sin(frameCount * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(nodes[bestRoute[0]].x, nodes[bestRoute[0]].y);
+    for (let k = 1; k < bestRoute.length; k++) {
+      ctx.lineTo(nodes[bestRoute[k]].x, nodes[bestRoute[k]].y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(255,200,0,${pulse})`;
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#ffcc00';
+    ctx.shadowBlur = 8;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // Draw nodes
+  for (let i = 0; i < n; i++) {
+    const node = nodes[i];
+    const isHospital = node.type === 'hospital';
+    const r = isHospital ? 12 : 7;
+    const color = isHospital ? '#ff4466' : '#00ffcc';
+
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = isHospital ? 15 : 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = isHospital ? '#fff' : '#001a14';
+    ctx.font = isHospital ? 'bold 9px Rajdhani' : '8px Rajdhani';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(isHospital ? '✚' : i, node.x, node.y);
+  }
+
+  frameCount++;
+}
+
+// ─── MAIN LOOP ────────────────────────────────────────────────────────────────
+const ITER_PER_FRAME = 1;
+
+function loop() {
+  if (!running) return;
+  readParams();
+  for (let i = 0; i < ITER_PER_FRAME; i++) acoIteration();
+  draw();
+  animFrame = requestAnimationFrame(loop);
+}
+
+// ─── CLICK-TO-BLOCK ───────────────────────────────────────────────────────────
+canvas.addEventListener('click', (e) => {
+  if (nodes.length === 0) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const THRESHOLD = 12;
+
+  // Find closest edge to click
+  let closestKey = null, closestDist = Infinity;
+
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const d = distPointToSegment(mx, my, nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+      if (d < THRESHOLD && d < closestDist) {
+        closestDist = d;
+        closestKey = edgeKey(i, j);
+      }
+    }
+  }
+
+  if (closestKey) {
+    if (blockedEdges.has(closestKey)) {
+      blockedEdges.delete(closestKey);
+      log(`Edge ${closestKey} unblocked`, 'good');
+    } else {
+      blockedEdges.add(closestKey);
+      log(`⚡ EDGE ${closestKey} BLOCKED — rerouting...`, 'warn');
+
+      // Flash chaos
+      const cf = document.getElementById('chaos-flash');
+      cf.classList.add('active');
+      setTimeout(() => cf.classList.remove('active'), 400);
+
+      // Validate best route
+      if (bestRoute) {
+        const d = routeLength(bestRoute);
+        if (d === Infinity) {
+          bestRoute = null;
+          bestDist = Infinity;
+          document.getElementById('s-best').textContent = 'REROUTING';
+        }
+      }
+    }
+    document.getElementById('s-blocked').textContent = blockedEdges.size;
+    draw();
+  }
+});
+
+function distPointToSegment(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+// ─── CONTROLS ────────────────────────────────────────────────────────────────
+function readParams() {
+  ALPHA = parseFloat(document.getElementById('alpha').value);
+  BETA  = parseFloat(document.getElementById('beta').value);
+  RHO   = parseFloat(document.getElementById('rho').value);
+  NUM_ANTS = parseInt(document.getElementById('ants').value);
+}
+
+['alpha','beta','rho','ants'].forEach(id => {
+  const el = document.getElementById(id);
+  const lbl = document.getElementById(id + '-val');
+  el.addEventListener('input', () => { lbl.textContent = el.value; });
+});
+
+document.getElementById('btn-start').addEventListener('click', () => {
+  if (running) return;
+  if (nodes.length === 0 || pheromone.length !== nodes.length) {
+    reset();
+  }
+  running = true;
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-stop').disabled = false;
+  log('Swarm activated', 'good');
+  loop();
+});
+
+document.getElementById('btn-stop').addEventListener('click', () => {
+  running = false;
+  cancelAnimationFrame(animFrame);
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled = true;
+  log('Swarm paused', 'info');
+});
+
+document.getElementById('btn-reset').addEventListener('click', reset);
+
+function reset() {
+  running = false;
+  cancelAnimationFrame(animFrame);
+  iterCount = 0; bestDist = Infinity; bestRoute = null; peerUpdateCount = 0;
+  document.getElementById('btn-start').disabled = false;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('s-iter').textContent = '0';
+  document.getElementById('s-best').textContent = '—';
+  document.getElementById('s-peer').textContent = '0';
+  document.getElementById('s-blocked').textContent = '0';
+  initNodes();
+  initPheromone();
+  draw();
+  log('Map reset', 'info');
+}
+
+// ─── LOGGING ─────────────────────────────────────────────────────────────────
+function log(msg, type = '') {
+  const box = document.getElementById('log-box');
+  const el = document.createElement('div');
+  el.className = 'log-entry ' + type;
+  const t = new Date().toLocaleTimeString('en-US', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  el.textContent = `${t} ${msg}`;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  // Keep log trimmed
+  while (box.children.length > 60) box.removeChild(box.firstChild);
+}
+
+// ─── INIT ────────────────────────────────────────────────────────────────────
+resizeCanvas();
+log(`${TAB_ID} ready · Open more tabs for P2P sync`, 'info');
+log('Click START to activate swarm', 'info');
+log('Click any route edge to block it', 'info');
+</script>
+</body>
+</html>

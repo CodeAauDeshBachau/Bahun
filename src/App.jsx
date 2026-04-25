@@ -2,6 +2,7 @@ import { MapCanvas } from './components/Canvas/MapCanvas.jsx'
 import { ControlPanel } from './components/Controls/ControlPanel.jsx'
 import { StatsPanel } from './components/Dashboard/StatsPanel.jsx'
 import { useSwarm } from './hooks/useSwarm.jsx'
+import { useServerConnection } from './hooks/useServerConnection.jsx'
 import './styles/app.css'
 
 function App() {
@@ -17,9 +18,9 @@ function App() {
     start,
     stop,
     reset,
-    setParameter,
-    toggleEdge,
+    loadDistanceMatrix,
   } = useSwarm()
+  const serverConnection = useServerConnection({ onDistanceMatrix: loadDistanceMatrix })
 
   return (
     <main className="app-shell">
@@ -27,22 +28,24 @@ function App() {
         <p className="eyebrow">Swarm Route Lab</p>
         <h1>Rescue Route Optimization Console</h1>
         <p>
-          Tune the swarm, watch route quality improve live, and click any road on the map to test
-          alternate rescue paths.
+          Tune the swarm, watch route quality improve live, and monitor server-driven road state
+          directly from the TSP matrix.
+        </p>
+        <p className={`server-badge ${serverConnection.isConnected ? 'online' : 'offline'}`}>
+          Server {serverConnection.isConnected ? 'connected' : 'disconnected'}
         </p>
       </header>
 
       <section className="dashboard-grid">
         <ControlPanel
-          nodes={nodes}
           isRunning={isRunning}
           onStart={start}
           onStop={stop}
           onReset={reset}
-          params={params}
-          onParamChange={setParameter}
+          serverStatus={serverConnection}
+          onConnectServer={serverConnection.connect}
         />
-        <StatsPanel stats={stats} />
+        <StatsPanel stats={stats} serverStatus={serverConnection} />
       </section>
 
       <MapCanvas
@@ -53,7 +56,6 @@ function App() {
         startNodeId={params.startNodeId}
         destinationNodeId={params.destinationNodeId}
         mapSize={mapSize}
-        onToggleEdge={toggleEdge}
       />
     </main>
   )

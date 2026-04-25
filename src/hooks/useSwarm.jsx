@@ -9,6 +9,7 @@ import {
   STIGMERGIC_BOOST,
 } from '../lib/constants.jsx'
 import { INITIAL_EDGES, MAP_SIZE, VILLAGES } from '../data/villages.jsx'
+import { edgeKey } from '../lib/graph.jsx'
 import { useBroadcast } from './useBroadcast.jsx'
 
 function createDefaultParams() {
@@ -29,10 +30,88 @@ function cloneEdges(edges) {
   return edges.map((edge) => ({ ...edge }))
 }
 
+function parseMatrixValue(rawValue) {
+  if (rawValue === '-') {
+    return { blocked: true, distance: null }
+  }
+
+  const distance = Number(rawValue)
+  if (!Number.isFinite(distance) || distance <= 0) {
+    return { blocked: false, distance: null }
+  }
+
+  return { blocked: false, distance }
+}
+
+function buildEdgesFromDistanceMatrix(distanceMatrix, initialPheromone, nodes, edgeWeights = {}) {
+  if (!distanceMatrix || typeof distanceMatrix !== 'object') {
+    return []
+  }
+
+  const nodeIds = new Set(nodes.map((node) => String(node.id)))
+  const seenEdgeIds = new Set()
+  const edges = []
+
+  for (const [from, neighbors] of Object.entries(distanceMatrix)) {
+    if (!nodeIds.has(String(from)) || !neighbors || typeof neighbors !== 'object') {
+      continue
+    }
+
+    for (const [to, rawDistance] of Object.entries(neighbors)) {
+      if (!nodeIds.has(String(to))) {
+        continue
+      }
+
+      const id = edgeKey(from, to)
+      if (seenEdgeIds.has(id)) {
+        continue
+      }
+
+      seenEdgeIds.add(id)
+      const reverseRawDistance = distanceMatrix?.[to]?.[from]
+      const current = parseMatrixValue(rawDistance)
+      const reverse = parseMatrixValue(reverseRawDistance)
+
+      const blocked = current.blocked || reverse.blocked
+
+      const distanceCandidates = [
+        current.distance,
+        reverse.distance,
+        Number(edgeWeights[id]),
+        Number(edgeWeights[edgeKey(to, from)]),
+      ]
+      const distance = distanceCandidates.find(
+        (value) => Number.isFinite(value) && value > 0,
+      )
+
+      if (!Number.isFinite(distance) || distance <= 0) {
+        continue
+      }
+
+      const weight = Number.isFinite(Number(edgeWeights[id]))
+        ? Number(edgeWeights[id])
+        : distance
+
+      edges.push({
+        id,
+        from,
+        to,
+        blocked,
+        pheromone: initialPheromone,
+        distance,
+        weight,
+      })
+    }
+  }
+
+  return edges
+}
+
 export function useSwarm() {
   const workerRef = useRef(null)
   const [nodes] = useState(VILLAGES)
   const [edges, setEdges] = useState(() => cloneEdges(INITIAL_EDGES))
+  const [baseEdges, setBaseEdges] = useState(() => cloneEdges(INITIAL_EDGES))
   const [bestRoute, setBestRoute] = useState([])
   const [antRoutes, setAntRoutes] = useState([])
   const [stats, setStats] = useState({
@@ -85,7 +164,7 @@ export function useSwarm() {
     workerRef.current?.postMessage({ type: 'BLOCK_EDGE', payload })
   }, [])
 
-  const { activeTabs, publishBestRoute, publishBlockedEdge } = useBroadcast({
+  const { activeTabs, publishBestRoute } = useBroadcast({
     onBestRoute: syncRemoteBestRoute,
     onBlockedEdge: syncRemoteBlockedEdge,
   })
@@ -153,7 +232,7 @@ export function useSwarm() {
   }, [])
 
   const reset = useCallback(() => {
-    const resetEdges = cloneEdges(INITIAL_EDGES).map((edge) => ({
+    const resetEdges = cloneEdges(baseEdges).map((edge) => ({
       ...edge,
       blocked: false,
       pheromone: params.initialPheromone,
@@ -172,26 +251,50 @@ export function useSwarm() {
       payload: { edges: resetEdges, params },
     })
     setIsRunning(false)
-  }, [params])
+  }, [baseEdges, params])
 
   const setParameter = useCallback((key, value) => {
     setParams((current) => ({ ...current, [key]: value }))
   }, [])
 
-  const toggleEdge = useCallback((edgeId) => {
-    setEdges((current) => {
-      const next = current.map((edge) =>
-        edge.id === edgeId ? { ...edge, blocked: !edge.blocked } : edge,
-      )
-      const changed = next.find((edge) => edge.id === edgeId)
-      if (changed) {
-        const payload = { edgeId, blocked: changed.blocked }
-        workerRef.current?.postMessage({ type: 'BLOCK_EDGE', payload })
-        publishBlockedEdge(payload)
-      }
-      return next
+  const loadDistanceMatrix = useCallback((distanceMatrix, serverParams = null, edgeWeights = {}) => {
+    const mergedParams = {
+      ...params,
+      ...(serverParams && typeof serverParams === 'object' ? serverParams : {}),
+    }
+
+    const nextEdges = buildEdgesFromDistanceMatrix(
+      distanceMatrix,
+      mergedParams.initialPheromone,
+      nodes,
+      edgeWeights,
+    )
+    if (!nextEdges.length) {
+      return
+    }
+
+    setParams(mergedParams)
+
+    setBaseEdges(nextEdges)
+    setEdges(nextEdges)
+    setBestRoute([])
+    setAntRoutes([])
+    setStats((current) => ({
+      ...current,
+      iteration: 0,
+      routesExplored: 0,
+      bestDistance: Number.POSITIVE_INFINITY,
+    }))
+
+    workerRef.current?.postMessage({
+      type: 'RESET',
+      payload: {
+        edges: nextEdges,
+        params: mergedParams,
+      },
     })
-  }, [publishBlockedEdge])
+    setIsRunning(false)
+  }, [nodes, params])
 
   return useMemo(() => ({
     nodes,
@@ -206,6 +309,19 @@ export function useSwarm() {
     stop,
     reset,
     setParameter,
-    toggleEdge,
-  }), [antRoutes, bestRoute, edges, isRunning, nodes, params, reset, setParameter, start, stats, stop, toggleEdge])
+    loadDistanceMatrix,
+  }), [
+    antRoutes,
+    bestRoute,
+    edges,
+    isRunning,
+    loadDistanceMatrix,
+    nodes,
+    params,
+    reset,
+    setParameter,
+    start,
+    stats,
+    stop,
+  ])
 }
