@@ -3,7 +3,7 @@
 
 export const ALPHA = 1;          // pheromone influence
 export const BETA = 5;           // distance influence (higher = greedier)
-export const EVAPORATION_RATE = 0.1;
+export const EVAPORATION_RATE = 0.1; // not apliable
 export const ANT_COUNT = 3;      // 3 ants per tab as per your design
 export const Q = 100;            // pheromone deposit constant
 export const STIGMERGIC_BOOST = 5; // multiplier when injecting peer's route

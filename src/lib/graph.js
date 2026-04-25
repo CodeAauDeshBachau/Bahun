@@ -7,11 +7,14 @@ let distMatrix = [];
 let tauMatrix = [];  // pheromone
 let nodeCount = 0;
 
-// Call once at startup with your villages array
+/**
+ * Initializes the distance and pheromone matrices.
+ * @param {Array} nodes - Array of objects with {x, y} coordinates.
+ */
 export function initGraph(nodes) {
     nodeCount = nodes.length;
 
-    // Build distance matrix — static, never changes
+    // Build distance matrix (static)
     distMatrix = Array.from({ length: nodeCount }, (_, i) =>
         Array.from({ length: nodeCount }, (_, j) => {
             if (i === j) return 0;
@@ -21,35 +24,53 @@ export function initGraph(nodes) {
         })
     );
 
-    // Build pheromone matrix — uniform at start
+    // Build pheromone matrix (dynamic)
     tauMatrix = Array.from({ length: nodeCount }, () =>
         new Array(nodeCount).fill(INITIAL_PHEROMONE)
     );
 }
 
-// Your friend's ant calls this to get pheromone on an edge
-export function getTau(i, j) {
+/**
+ * Returns an array of node indices [0, 1, 2...].
+ * Needed by aco.js for iteration.
+ */
+export function getNodes() {
+    return Array.from({ length: nodeCount }, (_, i) => i);
+}
+
+/**
+ * Matches aco.js: graph.getPheromone(u, v)
+ */
+export function getPheromone(i, j) {
     return tauMatrix[i][j];
 }
 
-// Your friend's ant calls this to get distance between two nodes
-export function getDist(i, j) {
+/**
+ * Matches aco.js: graph.getDistance(u, v)
+ */
+export function getDistance(i, j) {
     return distMatrix[i][j];
 }
 
-// Called by aco.js during pheromone update
-export function setTau(i, j, value) {
+/**
+ * Matches aco.js: graph.setPheromone(u, v, value)
+ */
+export function setPheromone(i, j, value) {
     tauMatrix[i][j] = value;
-    tauMatrix[j][i] = value;  // undirected
+    tauMatrix[j][i] = value; // Maintain symmetry for undirected graph
 }
 
-// Called when user clicks to block a road segment
+/**
+ * Sets distance to Infinity so ants calculate a 0% probability for this path.
+ */
 export function blockEdge(i, j) {
     distMatrix[i][j] = Infinity;
     distMatrix[j][i] = Infinity;
 }
 
-// Undo a block (optional but useful)
+/**
+ * Restores a blocked road.
+ */
 export function unblockEdge(i, j, originalDist) {
     distMatrix[i][j] = originalDist;
     distMatrix[j][i] = originalDist;
@@ -57,9 +78,4 @@ export function unblockEdge(i, j, originalDist) {
 
 export function getNodeCount() {
     return nodeCount;
-}
-
-// Expose full tau matrix for aco.js to iterate over
-export function getTauMatrix() {
-    return tauMatrix;
 }
