@@ -1,1 +1,55 @@
-/* Tailwind directives + global styles */
+:root {
+  --c-ivory: #fff8f0;
+  --c-caramel: #c08552;
+  --c-clay: #8c5a3c;
+  --c-espresso: #4b2e2b;
+
+  --bg: #f6f3ee;
+  --bg-soft: #eee6da;
+  --text: #3f3127;
+  --text-soft: #665246;
+  --panel: #fbf9f5;
+  --panel-border: rgba(99, 78, 65, 0.24);
+  --btn: #5f4739;
+  --btn-hover: #4f3b30;
+  --btn-text: #fdf7ef;
+  --route-a: #8c5a3c;
+  --route-b: #c08552;
+  --route-local: #c08552;
+  --city: #4b2e2b;
+  --shadow: 0 4px 12px rgba(45, 34, 26, 0.05);
+
+  font-family: Cambria, Georgia, serif;
+  color: var(--text);
+  background-color: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg);
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
